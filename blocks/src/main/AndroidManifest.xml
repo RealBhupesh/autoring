@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permissions needed by blocks in this module. Gradle merges them into the app's manifest. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Vibrate action and alarm vibration. Normal permission: granted at install, no dialog. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- "Show notification" action (runtime permission on Android 13+, asked when the block needs it). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+</manifest>

@@ -8,8 +8,11 @@ import com.priorityring.engine.block.Block
  */
 object CoreBlocks {
     val all: List<Block> = listOf(
+        NotificationPostedTrigger,
         TextMatchCondition,
         TimeWindowCondition,
         DaysOfWeekCondition,
+        WaitAction,
+        StopMacroAction,
     )
 }

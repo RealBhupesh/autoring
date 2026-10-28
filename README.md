@@ -12,7 +12,7 @@ THEN  [ordered actions]               with Wait / If / Repeat / Stop control blo
 
 "Ring when my boss emails" is not a feature. It's a macro anyone can assemble from generic blocks.
 
-> **Status: Milestone 1 (skeleton).** The engine contracts, storage, theme and screens exist. Notification monitoring, alarms and the macro builder arrive in M2. See `PROGRESS.md`.
+> **Status: Milestone 2 (core loop).** Notification monitoring (Gmail / WhatsApp / generic parsers), the engine with traces, the alarm (stop / snooze / full-screen), a basic schema-driven builder, Activity traces, an event simulator and a notification inspector are implemented and pass the automated tests, but have **not yet been verified on a real phone** (see `DEVICE_TEST_CHECKLIST.md`). The full block library arrives in M3. See `PROGRESS.md`.
 
 ## Build and install
 
@@ -108,11 +108,38 @@ Key ideas:
 
 Permissions are requested only when a macro uses a block that needs them, always with an explanation first.
 
-| Permission / access | Why | Since |
+| Permission / access | Kind | Why |
 |---|---|---|
-| `POST_NOTIFICATIONS` | Show alerts and the alarm notification (runtime permission on Android 13+) | M1 (declared) |
-| Notification access (listener) | Read other apps' notifications so they can trigger macros | M2 |
-| Others (exact alarms, full-screen intent, DND access, modify settings, usage access, foreground service types) | Added with the blocks that need them, each documented here | M2+ |
+| Notification access (`BIND_NOTIFICATION_LISTENER_SERVICE`) | Special access, user grants in system settings | Read other apps' notifications so they can trigger macros. |
+| `POST_NOTIFICATIONS` | Runtime (Android 13+) | Show the alarm notification (with STOP / SNOOZE), "Show notification" actions, and the foreground-service notification. |
+| `USE_FULL_SCREEN_INTENT` | Install-time; user-revocable special access on Android 14+ | Show the alarm screen over the lock screen. Without it, a heads-up notification is used. |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `FOREGROUND_SERVICE_SPECIAL_USE` | Install-time | Keep running while a macro runs (`specialUse`) and play the alarm sound in the background (`mediaPlayback`). |
+| `WAKE_LOCK` | Install-time | Keep the CPU awake (bounded) so waits and snooze timers fire on time with the screen off. |
+| `VIBRATE` | Install-time | Vibrate action and alarm vibration. |
+| Package visibility `<queries>` for launcher apps | Manifest declaration | List apps in the app picker and show app names. |
+
+Not used: no internet permission yet (it arrives only with the user-configured HTTP action in M3), no location, contacts, SMS or call permissions, and no cloud backup.
+
+## Testing without waiting for real notifications
+
+- **In the app:** Settings → Diagnostics → **Event simulator** sends a Gmail / WhatsApp / custom notification through the real parsers and engine (runs are marked *Simulated*).
+- **From your computer (debug builds only):**
+
+  ```bash
+  adb shell am broadcast -a com.priorityring.debug.SIMULATE \
+    -n com.priorityring.app.debug/com.priorityring.app.debug.DebugEventReceiver \
+    --es preset gmail --es sender "Rahul Sharma" --es text "Quarterly report" --es key t1
+  # preset: gmail | whatsapp | whatsapp_group | custom   extras: sender, text, group, package, key
+  adb logcat -s PriorityRing
+  ```
+
+  The receiver only exists in debug builds and only accepts broadcasts from the shell (it requires the `DUMP` permission). Reusing a `key` with the same text tests duplicate handling.
+- **A real Android notification** (posted by the shell app `com.android.shell`, so use a trigger with "any app"). This is the AOSP `cmd notification` tool; OEM builds may differ:
+
+  ```bash
+  adb shell cmd notification post -S messaging --conversation "Family" --message "Rahul:urgent call me" -t "Family" test1 "urgent call me"
+  ```
+- **Inspector:** Settings → Diagnostics → **Inspector** shows how recent real notifications were parsed, with a redacted dump of their extras to share for debugging.
 
 ## Privacy
 

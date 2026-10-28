@@ -11,14 +11,17 @@ package com.priorityring.engine.event
  *   didn't provide them (very common for notifications) — consumers must cope.
  * @param dedupeKey events with the same key are considered the same occurrence and fire at most once.
  *   Null means "never dedupe" (e.g. manual runs).
- * @param origin optional: id of the macro that caused this event, used for loop prevention.
+ * @param originChain ids of the macros whose actions (directly or indirectly) caused this event,
+ *   oldest first. Used for loop prevention: a macro never runs from an event it caused itself.
+ * @param simulated true for events from the simulator / test runs; shown as such in traces.
  */
 data class TriggerEvent(
     val type: String,
     val timestampMs: Long,
     val variables: Map<String, String?> = emptyMap(),
     val dedupeKey: String? = null,
-    val origin: String? = null,
+    val originChain: List<String> = emptyList(),
+    val simulated: Boolean = false,
 ) {
     operator fun get(name: String): String? = variables[name]
 

@@ -3,6 +3,7 @@ package com.priorityring.app.ui.settings
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.priorityring.app.runtime.MonitorHealth
 import com.priorityring.blocks.android.AndroidDeviceCapabilities
 import com.priorityring.data.repo.MacroRepository
 import com.priorityring.data.repo.RunRepository
@@ -26,7 +27,10 @@ class SettingsViewModel @Inject constructor(
     private val macros: MacroRepository,
     private val runs: RunRepository,
     private val capabilities: AndroidDeviceCapabilities,
+    health: MonitorHealth,
 ) : ViewModel() {
+
+    val monitor = health.status
 
     val appSettings = settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 

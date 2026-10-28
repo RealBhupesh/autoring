@@ -48,7 +48,10 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun MacrosScreen(vm: MacrosViewModel = hiltViewModel()) {
+fun MacrosScreen(
+    onOpen: (String?) -> Unit,
+    vm: MacrosViewModel = hiltViewModel(),
+) {
     val cards by vm.cards.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -63,14 +66,15 @@ fun MacrosScreen(vm: MacrosViewModel = hiltViewModel()) {
                 item {
                     EmptyState(
                         "No macros yet",
-                        "The macro builder arrives in the next milestone. For now you can add a sample " +
-                            "macro to check that saving works.",
+                        "A macro is WHEN something happens → IF conditions pass → THEN do actions. " +
+                            "Tap “New macro” to build your first one.",
                     )
                 }
             }
             items(list.orEmpty(), key = { it.id }) { card ->
                 MacroCard(
                     card,
+                    onOpen = { onOpen(card.id) },
                     onToggle = { vm.setEnabled(card.id, it) },
                     onDuplicate = { vm.duplicate(card.id) },
                     onDelete = { confirmDelete = card.id },
@@ -80,9 +84,9 @@ fun MacrosScreen(vm: MacrosViewModel = hiltViewModel()) {
         }
 
         ExtendedFloatingActionButton(
-            onClick = vm::addSample,
+            onClick = { onOpen(null) },
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("Add sample") },
+            text = { Text("New macro") },
             modifier = Modifier.align(Alignment.BottomEnd).padding(Spacing.m),
         )
     }
@@ -106,6 +110,7 @@ fun MacrosScreen(vm: MacrosViewModel = hiltViewModel()) {
 @Composable
 private fun MacroCard(
     card: MacroCardUi,
+    onOpen: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
@@ -113,7 +118,7 @@ private fun MacroCard(
     val palette = LocalPalette.current
     val haptics = LocalHapticFeedback.current
     var menu by remember { mutableStateOf(false) }
-    PanelCard {
+    PanelCard(onClick = if (card.readable) onOpen else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(card.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             Switch(

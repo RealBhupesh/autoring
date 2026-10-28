@@ -2,11 +2,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      Permissions are added only when a feature needs them, each with a reason (also in README).
-      POST_NOTIFICATIONS: Android 13+ runtime permission to show alerts. Requested with an
-      explanation, never at launch.
+      Every permission is listed with its reason in README.md. None is requested at launch:
+      runtime ones are asked for when a macro needs them, with an explanation first.
     -->
+    <!-- Show alerts and the alarm notification (runtime permission on Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Keep running while a macro runs / an alarm rings, and play the alarm in the background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Keep the CPU awake so waits and snooze timers fire on time with the screen off. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Show the alarm screen over the lock screen (user-revocable on Android 14+). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- Android 11+ package visibility: lets us list launchable apps in the app picker and show
+         app names for notifications. Only apps with a launcher icon are visible. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".PriorityRingApp"
@@ -28,5 +45,39 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Full-screen alarm. Its own task so it never drags the main app over the lock screen. -->
+        <activity
+            android:name=".alert.AlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.priorityring.alarm" />
+
+        <!-- Receives every notification once the user grants Notification access. -->
+        <service
+            android:name=".runtime.NotificationMonitorService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Foreground service: running macros (specialUse) and ringing alarms (mediaPlayback). -->
+        <service
+            android:name=".runtime.RunnerService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs user-created automations (alerts, waits, ordered actions) triggered by notifications the user chose to react to." />
+        </service>
+
+        <!-- STOP / SNOOZE / STOP ALL buttons. Not exported: only our own PendingIntents reach it. -->
+        <receiver
+            android:name=".alert.AlertActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

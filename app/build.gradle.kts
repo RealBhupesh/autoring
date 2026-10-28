@@ -17,8 +17,8 @@ android {
         // 36 = Android 16. Compiled against 37 so we can use its APIs behind version checks, but we
         // don't yet opt into Android 17 target-specific behaviour (see PROGRESS.md decision D7).
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-m1"
+        versionCode = 2
+        versionName = "0.2.0-m2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

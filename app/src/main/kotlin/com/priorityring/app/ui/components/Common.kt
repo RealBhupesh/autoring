@@ -35,15 +35,23 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Flat card on the surface colour; the app's basic container. */
+/** Flat card on the surface colour; the app's basic container. Clickable when [onClick] is set. */
 @Composable
-fun PanelCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Column(Modifier.padding(Spacing.m), content = content)
+fun PanelCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val color = MaterialTheme.colorScheme.surfaceContainer
+    val shape = MaterialTheme.shapes.medium
+    if (onClick != null) {
+        Surface(onClick = onClick, modifier = modifier.fillMaxWidth(), color = color, shape = shape) {
+            Column(Modifier.padding(Spacing.m), content = content)
+        }
+    } else {
+        Surface(modifier = modifier.fillMaxWidth(), color = color, shape = shape) {
+            Column(Modifier.padding(Spacing.m), content = content)
+        }
     }
 }
 

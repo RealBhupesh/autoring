@@ -53,7 +53,12 @@ import com.priorityring.data.settings.ThemeMode
 import com.priorityring.engine.block.Requirement
 
 @Composable
-fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onOpenSimulator: () -> Unit,
+    onOpenInspector: () -> Unit,
+    vm: SettingsViewModel = hiltViewModel(),
+) {
+    val monitor by vm.monitor.collectAsStateWithLifecycle()
     val settings by vm.appSettings.collectAsStateWithLifecycle()
     val requirements by vm.requirements.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -131,6 +136,28 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                 OutlinedButton(onClick = { confirm = "all" }) {
                     Text("Delete everything", color = LocalPalette.current.redText)
                 }
+            }
+        }
+
+        SectionLabel("Diagnostics")
+        PanelCard {
+            fun time(t: Long?) = t?.let { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.MEDIUM).format(java.util.Date(it)) } ?: "never"
+            val listener = when (monitor.listenerConnected) {
+                true -> "connected"
+                false -> "disconnected by Android"
+                null -> "not connected since app start"
+            }
+            Text("Notification listener: $listener", style = MaterialTheme.typography.bodyMedium)
+            Text("Last connected: ${time(monitor.lastConnectedAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Last disconnected: ${time(monitor.lastDisconnectedAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Last notification received: ${time(monitor.lastEventAt)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            monitor.foregroundError?.let {
+                Text("Background start blocked: $it", style = MaterialTheme.typography.bodySmall, color = LocalPalette.current.redText)
+            }
+            Spacer(Modifier.height(Spacing.s))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                OutlinedButton(onClick = onOpenSimulator) { Text("Event simulator") }
+                OutlinedButton(onClick = onOpenInspector) { Text("Inspector") }
             }
         }
 

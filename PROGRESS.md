@@ -6,9 +6,9 @@ The handoff document. A fresh session should read this first, then `README.md`.
 
 | Milestone | State |
 |---|---|
-| M1 Skeleton | **Done; waiting for device results** |
-| M2 Core loop (listener, parsers, executor, AlertController, first blocks, basic builder) | Next |
-| M3 Block library expansion | — |
+| M1 Skeleton | Done. Device results not received yet; the owner said to keep going. |
+| M2 Core loop (listener, parsers, executor, AlertController, first blocks, basic builder) | **Done here; waiting for device results** |
+| M3 Block library expansion | Next |
 | M4 Product quality | — |
 | M5 Hardening | — |
 
@@ -51,6 +51,23 @@ Engineering decisions made so far; product decisions go to the owner.
 - **D10: No cloud backup and no device transfer** (`allowBackup=false` plus exclude-all rules). Privacy first: the backup path is Export, which writes a JSON file the user controls.
 - **D11: Debug builds use `applicationId` `com.priorityring.app.debug`**, so a future release build can sit alongside them. The release id `com.priorityring.app` can still be changed before the first Play upload.
 - **D12: Bundled fonts (SIL OFL)** as variable TTFs: Inter for body, Space Grotesk for headings, JetBrains Mono for labels. Licences are in `/licenses`.
+- **D14: One foreground service, `RunnerService`, with types `mediaPlayback|specialUse`.**
+  - It's started (by `ForegroundCoordinator`) whenever a macro is running or an alert is active, and stops itself when both are idle.
+  - On Android 14+ it always starts with **both** types. Upgrading the type later, from the background, is the risky path, and losing the alarm is the worst failure.
+  - It holds a bounded partial wake lock, so waits and snooze timers fire with the screen off.
+  - If Android refuses the start (`ForegroundServiceStartNotAllowedException`), the run still continues. The failure is shown on Home and in the alarm action's trace.
+  - **Revisit before Play:** `specialUse` needs Play Console justification, and declaring `mediaPlayback` while no sound plays may be questioned. Alternatives: `shortService` for short runs, exact alarms for long waits.
+- **D15: The alarm is owned by `AndroidAlertController`, driven by the pure `AlertMachine`.**
+  - The state is persisted synchronously (SharedPreferences `commit`), so STOP works after process death.
+  - Outputs (sound, vibration, torch) are *reconciled* against the state rather than toggled per event, which makes stop atomic.
+  - Ring alarm, Vibrate "until stopped" and Flash torch all *join* the one alert, so a single STOP ends everything.
+  - Snooze uses a coroutine timer inside the foreground service, with no exact-alarm permission needed. If the process dies while snoozed, the alert re-evaluates on the next start.
+- **D16: The notification listener ignores PriorityRing's own notifications** (loop prevention), plus an origin chain on events for macro→macro loops (M3).
+- **D17: Notification parsing is pure** (`engine/notification`), working on a `RawNotification` that `NotificationExtractor` (Android) builds field by field.
+  - A failure reading one extras field never loses the whole notification.
+  - The dedupe key is notification key + FNV-1a hash of the *content*, so silent re-posts are duplicates but a new message in the same chat isn't.
+- **D18: Privacy.** `TracePrivacy` strips content variables (`text`, `title`, `subject`, …) from stored traces unless "Store notification text" is on, and masks them wherever a condition quoted them in a reason. Sender and app stay visible. Content equal to a kept value (Gmail's title = sender) isn't masked.
+- **D19: Debug-only `adb` receiver** (`app/src/debug`), protected by the `DUMP` permission, so only the shell can use it. It doesn't exist in release builds.
 - **D13: Red text on dark uses `#FF5A4F`.** `#E1261C` on `#090909` has only about 4.3:1 contrast. `#E1261C` remains for fills, icons and the pulse, and white on it reaches about 4.7:1.
 
 ## Design input for M2 (from the docs research, `docs/android-api-notes.md`)
@@ -67,6 +84,27 @@ Engineering decisions made so far; product decisions go to the owner.
 - **DND (targetSdk 35+):** `setInterruptionFilter` now controls an app-owned implicit rule and can't turn off DND that the user set. Use an `AutomaticZenRule` per macro.
 - **Silent mode / DND and alarms:** AOSP says the alarm stream ignores silent and vibrate modes and is allowed in DND by default, but users can change that. This goes on the device checklist for the vivo.
 - **Android 15+ OTP redaction:** notification listeners receive redacted text for notifications Android classifies as containing OTPs. Document this in LIMITATIONS.
+
+## Done (M2)
+
+- **Engine:**
+  - `MacroEngine`, which does matching, event-level dedupe, pause, loop prevention, conditions (AND/OR/NOT, all evaluated for the trace), skip-if-running / cooldown / rate limit (atomic), timeouts, failure policy, If / Repeat (capped) / Stop / Wait, stop and stop all.
+  - `RunTrace` with step-by-step records, `TracePrivacy`, `AlertMachine` plus the `AlertController` contract.
+  - Notification model and parsers (Gmail single and summary, WhatsApp MessagingStyle 1:1 / group / own message / fallback / summary, generic), and the notification-posted trigger.
+  - 90 unit tests.
+- **Blocks:**
+  - `NotificationExtractor`, the redacted `NotificationDump`, notification channels, device built-in `{battery}`, and Vibration / Torch helpers.
+  - Actions: ring alarm, vibrate, flash torch, show notification, plus wait / stop in core.
+- **App runtime:**
+  - `NotificationMonitorService` (connection tracking, `requestRebind` on disconnect), `EventDispatcher` (ordered queue), `RunHistory` (privacy filter, last-run, retention pruning) and `MonitorHealth`.
+  - `ForegroundCoordinator` plus `RunnerService`.
+  - `AndroidAlertController` with `AlarmSound` (alarm stream, focus, optional full volume restored after), `AlertNotifier` (heads-up / full-screen, STOP / SNOOZE), `AlertActionReceiver` and `AlarmActivity` (over the lock screen, without dismissing the keyguard).
+  - Debug `adb` receiver.
+- **App UI:**
+  - Schema-driven builder: WHEN / IF / THEN, a searchable block library with tier and availability, config forms for all 13 field types, a variable picker, a live sentence, reordering with up/down, NOT, failure policy, per-macro settings, validation, discard and delete confirmation.
+  - Activity filters and run detail. Home: health states (granted / connected / stalled / foreground blocked), alarm banner, running macros with Stop / Stop all, test alarm, last event.
+  - Settings Diagnostics, the event simulator and the notification inspector.
+- **Tests:** 90 engine, 3 DataStore and 5 Robolectric (all tabs, master switch, builder creates and saves a macro, validation messages, simulated Gmail through the whole pipeline to the Activity detail). Lint is clean.
 
 ## Done (M1)
 
@@ -88,28 +126,24 @@ Engineering decisions made so far; product decisions go to the owner.
   - `:app` 3 Robolectric smoke tests (launch, all tabs, master switch, sample macro with missing blocks).
 - Lint is clean in all modules.
 
-## Next (M2)
+## Next (M3)
 
-- `NotificationListenerService` with connection tracking, `requestRebind`, and a last-event timestamp.
-- Gmail, WhatsApp and generic parsers (MessagingStyle, `EXTRA_TEXT_LINES`, grouped summaries, nullable everything) with fixtures, plus a debug "dump extras (redacted)" screen.
-- Engine executor:
-  - matching, dedupe (key + content hash), cooldown, rate limit, skip-if-running;
-  - timeouts, failure policy, Wait / If / Repeat, loop prevention;
-  - a trace model saved to `runs`.
-- Foreground runner service and `AlertController`, which owns alarm state: one sound at a time, atomic stop, snooze, survives process death via persisted state.
-- Blocks:
-  - trigger: notification posted;
-  - actions: ring alarm, vibrate, torch, show notification, wait.
-- Basic schema-driven builder, Activity trace detail, event simulator, and an `adb` command to post fake notifications.
-- The Home "test alarm" button. A Home health check that also detects a disconnected or stalled listener, not just a missing grant.
+- Remaining v1 triggers: notification removed, time / schedule (exact alarms), charging, battery level, headphones / Bluetooth, Wi-Fi, screen on / unlocked, app launched (usage access), manual (button, widget, Quick Settings tile).
+- Remaining conditions and actions from the brief, each verified against current docs. Speak text, volume, ringer, DND (AutomaticZenRule), brightness, launch app / URL via tap-to-open notification, intents, HTTP (adds INTERNET), notification reply / dismiss / press action, media, clipboard, wallpaper, and SMS / call (sideload-only).
+- Builder editing for If / Repeat, plus Run another macro and Log blocks.
+- Templates gallery, import / export UI (the engine side already exists), undo delete.
+- Unit tests for every block's config and summary, including the M2 Android actions.
 
 ## Known issues / notes
 
-- The "Notification access" fix button opens the system screen, but PriorityRing isn't listed there until the listener service exists (M2).
-- The M1 "Add sample" macro deliberately shows "Missing block" for its trigger and actions, whose blocks arrive in M2. This is the unknown-block handling working. The button is removed once the builder exists.
-- Deleting a macro has a confirmation but no undo yet (planned with the builder, M3/M4).
-- Light theme exists but hasn't had a design pass (M4).
-- Compose instrumented UI tests aren't written yet. They need a device or emulator (M4).
+- **Nothing in M2 has run on a real phone yet.** All verification is unit tests plus Robolectric. The M2 section of `DEVICE_TEST_CHECKLIST.md` is the real test.
+- **Android 17 race:** a "Ring alarm" that is the macro's first action can start the sound a few milliseconds before the foreground service is up. That's fine on Android ≤ 16. On Android 17 the first fraction of a second might be blocked. Fix if device tests show it: await the service in `AlertController.request`.
+- **Background start of the foreground service from the listener** is allowed per AOSP source but undocumented, and vivo may differ. If it fails, Home shows it.
+- The basic builder shows nested groups / If / Repeat read-only (M3). Drag-to-reorder is up/down buttons for now (M4).
+- `RecentNotifications` (inspector) is in memory only and lost when the process restarts. This is by design (privacy).
+- Small icons for notifications use platform drawables. Custom monochrome icons come in M4.
+- No undo for delete yet (M3/M4). Light theme hasn't had a design pass (M4). No Compose instrumented tests yet (they need a device; M4).
+- The draft PR wasn't created: the repo has no base branch. The owner was asked whether to create `main`.
 
 ## Sources
 

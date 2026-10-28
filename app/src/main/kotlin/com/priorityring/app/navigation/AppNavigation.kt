@@ -30,6 +30,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.priorityring.app.ui.activity.ActivityScreen
+import com.priorityring.app.ui.activity.RunDetailScreen
+import com.priorityring.app.ui.diagnostics.InspectorScreen
+import com.priorityring.app.ui.diagnostics.SimulatorScreen
+import com.priorityring.app.ui.editor.MacroEditorScreen
 import com.priorityring.app.ui.home.HomeScreen
 import com.priorityring.app.ui.macros.MacrosScreen
 import com.priorityring.app.ui.settings.SettingsScreen
@@ -43,6 +47,12 @@ import kotlin.reflect.KClass
 @Serializable data object MacrosRoute
 @Serializable data object ActivityRoute
 @Serializable data object SettingsRoute
+
+/** id == null → new macro. */
+@Serializable data class MacroEditorRoute(val id: String? = null)
+@Serializable data class RunDetailRoute(val id: String)
+@Serializable data object SimulatorRoute
+@Serializable data object InspectorRoute
 
 private data class Tab(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector)
 
@@ -94,11 +104,28 @@ fun AppNavigation() {
             exitTransition = { fadeOut(tween(fadeMs)) },
         ) {
             composable<HomeRoute> {
-                HomeScreen(onOpenMacros = { nav.navigate(MacrosRoute) { launchSingleTop = true } })
+                HomeScreen(
+                    onOpenMacros = { nav.navigate(MacrosRoute) { launchSingleTop = true } },
+                    onOpenRun = { nav.navigate(RunDetailRoute(it)) },
+                )
             }
-            composable<MacrosRoute> { MacrosScreen() }
-            composable<ActivityRoute> { ActivityScreen() }
-            composable<SettingsRoute> { SettingsScreen() }
+            composable<MacrosRoute> { MacrosScreen(onOpen = { nav.navigate(MacroEditorRoute(it)) }) }
+            composable<ActivityRoute> { ActivityScreen(onOpenRun = { nav.navigate(RunDetailRoute(it)) }) }
+            composable<SettingsRoute> {
+                SettingsScreen(
+                    onOpenSimulator = { nav.navigate(SimulatorRoute) },
+                    onOpenInspector = { nav.navigate(InspectorRoute) },
+                )
+            }
+            composable<MacroEditorRoute> { MacroEditorScreen(onClose = { nav.popBackStack() }) }
+            composable<RunDetailRoute> { RunDetailScreen(onBack = { nav.popBackStack() }) }
+            composable<SimulatorRoute> {
+                SimulatorScreen(
+                    onBack = { nav.popBackStack() },
+                    onOpenActivity = { nav.navigate(ActivityRoute) { launchSingleTop = true } },
+                )
+            }
+            composable<InspectorRoute> { InspectorScreen(onBack = { nav.popBackStack() }) }
         }
     }
 }

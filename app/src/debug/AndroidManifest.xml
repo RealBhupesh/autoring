@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only (merged into the debug manifest; never in release). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          Lets `adb shell am broadcast` inject fake notifications into the real pipeline.
+          Protected by DUMP, a permission only the shell (adb) and the system hold.
+        -->
+        <receiver
+            android:name="com.priorityring.app.debug.DebugEventReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.priorityring.debug.SIMULATE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
